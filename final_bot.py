@@ -2,6 +2,8 @@ import os
 import sys
 import logging
 import asyncio
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import yt_dlp
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
@@ -9,13 +11,26 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 # --- تنظیمات ---
 TOKEN = os.getenv('BOT_TOKEN')
 BASE_URL = os.getenv('BASE_URL', 'https://google.com') 
+PORT = int(os.getenv('PORT', 8000))  # پورت را از محیط می‌گیریم یا 8000
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# --- بخش Health Check برای Koyeb ---
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+
+def start_health_server():
+    server = HTTPServer(('0.0.0.0', PORT), HealthCheckHandler)
+    print(f"✅ Health check server running on port {PORT}")
+    server.serve_forever()
+
 # --- بررسی‌های اولیه (Fail Fast) ---
 print("\n" + "!"*50)
-print("🚀 STARTING FINAL BOT V3.0")
+print("🚀 STARTING FINAL BOT V3.1 (With Health Check)")
 
 # 1. بررسی وجود Node.js
 node_check = os.system("node -v")
@@ -28,15 +43,9 @@ else:
 COOKIE_FILE = 'youtube_cookies.txt'
 if not os.path.exists(COOKIE_FILE):
     print(f"❌ CRITICAL: Cookie file '{COOKIE_FILE}' NOT found!")
-    # فایل خالی می‌سازیم که ربات کرش نکند، ولی دانلود یوتیوب کار نخواهد کرد
     with open(COOKIE_FILE, 'w') as f: f.write("# Netscape HTTP Cookie File\n")
 else:
     print(f"✅ Cookie file found: {os.path.abspath(COOKIE_FILE)}")
-    # چک کردن فرمت فایل
-    with open(COOKIE_FILE, 'r') as f:
-        first_line = f.readline()
-        if "Netscape" not in first_line and "#" not in first_line:
-            print("⚠️ WARNING: Cookie file format might be wrong! Must be Netscape format.")
 
 print("!"*50 + "\n")
 
@@ -52,12 +61,8 @@ def get_ydl_opts(download_mode=False):
         'quiet': True,
         'nocheckcertificate': True,
         'cookiefile': COOKIE_FILE,
-        
-        # --- حیاتی‌ترین بخش برای Koyeb ---
-        'source_address': '0.0.0.0',  # اجبار به استفاده از IPv4 (حل مشکل بلاک یوتیوب)
+        'source_address': '0.0.0.0',
         'force_ipv4': True,
-        
-        # استفاده از کلاینت اندروید (پایدارترین حالت)
         'extractor_args': {
             'youtube': {
                 'player_client': ['android', 'web'],
@@ -84,28 +89,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = await update.message.reply_text("⏳ در حال بررسی (Force IPv4)...")
     
     try:
-        # مرحله اول: گرفتن اطلاعات
         ydl_opts = get_ydl_opts(download_mode=False)
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = await asyncio.to_thread(ydl.extract_info, url, download=False)
             
+            # اصلاح بخش فرمت‌ها برای جلوگیری از ارور Requested format not available
             formats = [f for f in info.get('formats', []) if f.get('height')]
             unique_formats = []
             seen = set()
-            # سورت کردن و حذف تکراری‌ها
+            
             for f in sorted(formats, key=lambda x: x['height'] if x['height'] else 0, reverse=True):
                 h = f['height']
                 if h and h not in seen:
                     unique_formats.append(f)
                     seen.add(h)
 
+            if not unique_formats:
+                 raise Exception("هیچ فرمت تصویری مناسبی پیدا نشد (شاید ویدیو فقط صداست یا فرمت خاصی دارد).")
+
             context.user_data['url'] = url
             context.user_data['formats'] = unique_formats
             context.user_data['title'] = info.get('title', 'video')
             
             keyboard = []
-            for i, f in enumerate(unique_formats[:5]): # فقط 5 کیفیت اول
+            for i, f in enumerate(unique_formats[:5]): 
                 keyboard.append([InlineKeyboardButton(f"📥 {f['height']}p", callback_data=f"dl_{i}")])
             
             await msg.edit_text(f"🎥 **{info.get('title')}**\n\nکیفیت را انتخاب کن:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
@@ -113,29 +121,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         error = str(e)
         logger.error(error)
-        if "Sign in" in error:
-            await msg.edit_text("❌ خطا: فایل کوکی منقضی شده یا نامعتبر است.")
-        elif "n challenge" in error:
-            await msg.edit_text("❌ خطا: مشکل JS هنوز پابرجاست (عجیب است!).")
-        else:
-            await msg.edit_text(f"❌ خطا: {error[:200]}")
+        await msg.edit_text(f"❌ خطا: {error[:200]}")
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
     idx = int(query.data.split('_')[1])
-    fmt = context.user_data['formats'][idx]
-    url = context.user_data['url']
-    
-    await query.edit_message_text(f"🚀 در حال دانلود {fmt['height']}p...")
-    
-    safe_title = "".join([c for c in context.user_data.get('title', 'vid') if c.isalnum()])[:15]
-    filename = f"{safe_title}_{fmt['height']}p.mp4"
-    output_path = os.path.join(STATIC_PATH, filename)
-
     try:
+        fmt = context.user_data['formats'][idx]
+        url = context.user_data['url']
+        
+        await query.edit_message_text(f"🚀 در حال دانلود {fmt['height']}p...")
+        
+        safe_title = "".join([c for c in context.user_data.get('title', 'vid') if c.isalnum()])[:15]
+        filename = f"{safe_title}_{fmt['height']}p.mp4"
+        output_path = os.path.join(STATIC_PATH, filename)
+
         ydl_opts = get_ydl_opts(download_mode=True)
+        # اصلاح: استفاده از آیدی فرمت دقیق + بهترین صدا
         ydl_opts['format'] = f"{fmt['format_id']}+bestaudio/best"
         ydl_opts['outtmpl'] = output_path
         
@@ -146,9 +150,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(f"✅ دانلود تکمیل شد!\n\n🔗 [لینک دانلود]({dl_link})", parse_mode='Markdown')
         
     except Exception as e:
-        await query.message.reply_text(f"❌ خطا در دانلود نهایی: {str(e)}")
+        logger.error(str(e))
+        await query.message.reply_text(f"❌ خطا در دانلود: {str(e)}")
 
 if __name__ == '__main__':
+    # اجرای سرور Health Check در یک ترد جداگانه
+    health_thread = threading.Thread(target=start_health_server, daemon=True)
+    health_thread.start()
+
     application = Application.builder().token(TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))

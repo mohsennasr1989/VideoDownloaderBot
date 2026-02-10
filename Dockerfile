@@ -20,5 +20,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# اعلام پورت 8000 به داکر (خیلی مهم برای Koyeb)
+EXPOSE 8000
+
 # دستور اجرا
 CMD ["python", "final_bot.py"]
