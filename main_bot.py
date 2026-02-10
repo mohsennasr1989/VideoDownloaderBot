@@ -86,8 +86,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'outtmpl': output_path,
         'merge_output_format': 'mp4',
         'nocheckcertificate': True,
-        'cookiefile': 'youtube_cookies.txt', # استفاده از کوکی
+        'cookiefile': 'youtube_cookies.txt',
         'nopart': False,
+        # این خط حیاتی است برای زمانی که کوکی اذیت می‌کند
+        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
     }
 
     try:
