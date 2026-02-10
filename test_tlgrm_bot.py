@@ -78,12 +78,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(f"🚀 شروع دانلود {selected['height']}p...\nفایل‌های موقت پس از تکمیل حذف می‌شوند.")
 
     ydl_opts = {
-        'format': f"{selected['format_id']}+bestaudio/best",
-        'outtmpl': output_path,
-        'merge_output_format': 'mp4',
-        'nocheckcertificate': True,
-        'nopart': False, # اجازه استفاده از فایل‌های .part برای پایداری
-    }
+    'format': f"{selected['format_id']}+bestaudio/best",
+    'outtmpl': output_path,
+    'merge_output_format': 'mp4',
+    'nocheckcertificate': True,
+    'cookiefile': 'youtube_cookies.txt', # استفاده از کوکی برای دور زدن بلاک
+    'nopart': False,
+}
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
