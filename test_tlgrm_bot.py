@@ -76,13 +76,19 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     output_path = os.path.join(STATIC_PATH, safe_name)
 
     await query.edit_message_text(f"🚀 شروع دانلود {selected['height']}p...\nفایل‌های موقت پس از تکمیل حذف می‌شوند.")
+    
+    cookie_path = os.path.join(os.getcwd(), 'youtube_cookies.txt')
+    if os.path.exists(cookie_path):
+        logging.info(f"✅ فایل کوکی پیدا شد: {cookie_path}")
+    else:
+        logging.error(f"❌ خطا: فایل کوکی در مسیر {cookie_path} وجود ندارد!")
 
     ydl_opts = {
     'format': f"{selected['format_id']}+bestaudio/best",
     'outtmpl': output_path,
     'merge_output_format': 'mp4',
     'nocheckcertificate': True,
-    'cookiefile': 'youtube_cookies.txt',
+    'cookiefile': cookie_path,
     'nopart': False,
     'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
     }
