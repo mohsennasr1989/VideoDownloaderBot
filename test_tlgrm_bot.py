@@ -6,6 +6,8 @@ import shutil
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 
+print("🚀 VERSION 2.0 - OAUTH2 METHOD ACTIVATED")
+
 # --- تنظیمات ---
 TOKEN = TOKEN = os.getenv('BOT_TOKEN')
 # آدرس سایت شما در PythonAnywhere (مثلاً http://mohsen.pythonanywhere.com)
@@ -88,18 +90,18 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'outtmpl': output_path,
         'merge_output_format': 'mp4',
         'nocheckcertificate': True,
-        # استفاده از متد OAuth2 به جای فایل کوکی
+        
+        # تنظیمات اجباری OAuth2
         'username': 'oauth2',
-        'password': '', 
-        'nopart': False,
-        # استفاده از کلاینت‌های مختلف برای دور زدن محدودیت
+        'password': '',
+        
         'extractor_args': {
             'youtube': {
-                'player_client': ['tv', 'web'],
-                'skip': ['dash', 'hls']
+                'player_client': ['tv'], # کلاینت تلویزیون پایدارترین حالت برای OAuth است
+                'player_skip': ['webpage', 'configs'], # پرش از متدهای عادی
             }
         },
-        'cache_dir': '/app/cache',
+        'nopart': False,
     }
 
     try:
