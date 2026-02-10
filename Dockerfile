@@ -1,6 +1,6 @@
 FROM python:3.10-slim
 
-# Force Rebuild: 2026-02-10-v1
+# نصب Node.js نسخه 20 (حیاتی برای یوتیوب)
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     curl \
@@ -9,7 +9,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
 COPY requirements.txt .
-RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
 COPY . .
-CMD ["python", "tlgrm_bot.py"]
+
+# دستور اجرا
+CMD ["python", "main_bot.py"]
