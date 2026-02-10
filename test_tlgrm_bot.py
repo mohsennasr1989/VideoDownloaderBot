@@ -9,7 +9,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 # --- تنظیمات ---
 TOKEN = TOKEN = os.getenv('BOT_TOKEN')
 # آدرس سایت شما در PythonAnywhere (مثلاً http://mohsen.pythonanywhere.com)
-BASE_URL = 'http://YOUR_USERNAME.pythonanywhere.com' 
+BASE_URL = os.getenv('BASE_URL', 'http://localhost') 
 # مسیر پوشه استاتیک روی سرور
 STATIC_PATH = os.path.join(os.getcwd(), 'static')
 
