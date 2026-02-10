@@ -3,131 +3,131 @@ import sys
 import logging
 import asyncio
 import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import shutil
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 import yt_dlp
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 
 # --- تنظیمات ---
 TOKEN = os.getenv('BOT_TOKEN')
+# نکته: آدرس اپلیکیشن در کویب را اینجا بگذارید (بدون اسلش آخر)
+# مثال: https://my-bot-name.koyeb.app
 BASE_URL = os.getenv('BASE_URL', 'https://google.com') 
 PORT = int(os.getenv('PORT', 8000))
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- بخش Health Check ---
-class HealthCheckHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"OK")
+# مسیر ذخیره فایل‌ها
+STATIC_DIR = os.path.join(os.getcwd(), 'static')
+os.makedirs(STATIC_DIR, exist_ok=True)
 
-def start_health_server():
-    server = HTTPServer(('0.0.0.0', PORT), HealthCheckHandler)
-    print(f"✅ Health check server running on port {PORT}")
+# --- سرور وب واقعی (برای دانلود فایل) ---
+class RealFileHandler(SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        # ریشه سرور را پوشه static قرار می‌دهیم
+        super().__init__(*args, directory=STATIC_DIR, **kwargs)
+
+    def do_GET(self):
+        # اگر درخواست Health Check بود
+        if self.path == '/health':
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"OK")
+            return
+        
+        # در غیر این صورت فایل را دانلود کن
+        return super().do_GET()
+
+def start_web_server():
+    # سرور را روی پورت 8000 اجرا می‌کنیم
+    server = HTTPServer(('0.0.0.0', PORT), RealFileHandler)
+    print(f"✅ File Server & Health Check running on port {PORT}")
+    print(f"📂 Serving files from: {STATIC_DIR}")
     server.serve_forever()
 
-# --- بررسی‌های اولیه ---
-print("\n" + "!"*50)
-print("🚀 STARTING FINAL BOT V5.0 (IPv6 + iOS Strategy)")
-
-COOKIE_FILE = 'youtube_cookies.txt'
-if not os.path.exists(COOKIE_FILE):
-    print(f"❌ CRITICAL: Cookie file '{COOKIE_FILE}' NOT found! YouTube will BLOCK this bot.")
-    # ساخت فایل خالی فقط برای جلوگیری از کرش، اما دانلود انجام نخواهد شد
-    with open(COOKIE_FILE, 'w') as f: f.write("# Netscape HTTP Cookie File\n")
-else:
-    print(f"✅ Cookie file found: {os.path.abspath(COOKIE_FILE)}")
-
-print("!"*50 + "\n")
-
-if not TOKEN:
-    sys.exit("❌ FATAL: BOT_TOKEN is missing.")
-
-STATIC_PATH = os.path.join(os.getcwd(), 'static')
-os.makedirs(STATIC_PATH, exist_ok=True)
-
-# --- تنظیمات حیاتی yt-dlp ---
+# --- تنظیمات yt-dlp (بدون کوکی) ---
 def get_ydl_opts(download_mode=False):
     opts = {
         'quiet': True,
         'nocheckcertificate': True,
-        'cookiefile': COOKIE_FILE,
+        # کوکی را حذف کردیم چون باعث بلاک شدن می‌شود
+        'source_address': '0.0.0.0', 
         
-        # --- استراتژی IPv6 (حل مشکل Sign in) ---
-        # حذف force_ipv4 و source_address تا خود سیستم عامل IPv6 را انتخاب کند
-        # 'force_ipv4': False,  <-- پیش‌فرض فالس است، پس خط را حذف می‌کنیم
+        # اجازه به IPv6 (حیاتی برای عبور از تحریم یوتیوب در دیتاسنتر)
+        'force_ipv4': False,
         
-        # استفاده از کلاینت iOS (پایدارترین گزینه با کوکی)
+        # کلاینت اندروید بدون کوکی معمولا بهتر جواب می‌دهد
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'web'],
-                'player_skip': ['js', 'configs', 'webpage'],
+                'player_client': ['android', 'web'],
+                'player_skip': ['configs', 'webpage'],
             }
         },
     }
     
     if download_mode:
         opts.update({
-            'nopart': False,
-            'merge_output_format': 'mp4',
+            'nopart': True, # دانلود یک‌تکه برای جلوگیری از فایل‌های ناقص
+            'outtmpl': '%(title)s.%(ext)s',
+            # محدود کردن کیفیت برای جلوگیری از کرش کردن سرور (OOM)
+            'format': 'best[ext=mp4]/best',
         })
     
     return opts
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("ربات آماده است (نسخه IPv6). لینک بده!")
+    await update.message.reply_text("ربات آماده است! (نسخه پایدار)")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
     if not url.startswith("http"): return
 
-    msg = await update.message.reply_text("⏳ در حال بررسی (IPv6 Mode)...")
+    msg = await update.message.reply_text("⏳ در حال بررسی...")
     
     try:
+        # پاکسازی فایل‌های قدیمی برای آزاد کردن فضا
+        clean_static_folder()
+
         ydl_opts = get_ydl_opts(download_mode=False)
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # دریافت اطلاعات
             try:
                 info = await asyncio.to_thread(ydl.extract_info, url, download=False)
             except Exception as e:
-                # اگر با کوکی خطا داد، این بار شانس کمی وجود دارد بدون کوکی کار کند
-                # اما لاگ میکنیم
-                logger.error(f"Extraction failed: {e}")
-                raise e
+                # اگر باز هم ارور داد، تلاش با کلاینت iOS
+                logger.warning(f"First attempt failed: {e}. Trying iOS fallback...")
+                ydl_opts['extractor_args']['youtube']['player_client'] = ['ios']
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
+                    info = await asyncio.to_thread(ydl2.extract_info, url, download=False)
 
-            formats = [f for f in info.get('formats', []) if f.get('height')]
-            unique_formats = []
-            seen = set()
+            # استخراج فرمت‌ها
+            formats = info.get('formats', [])
+            # فیلتر کردن فرمت‌های خیلی حجیم که سرور را می‌کشند
+            valid_formats = []
+            seen_heights = set()
             
-            for f in sorted(formats, key=lambda x: x['height'] if x['height'] else 0, reverse=True):
-                h = f['height']
-                if h and h not in seen:
-                    unique_formats.append(f)
-                    seen.add(h)
-
-            if not unique_formats:
-                 raise Exception("فرمت تصویری یافت نشد. (ممکن است کوکی منقضی شده باشد)")
+            for f in sorted(formats, key=lambda x: x.get('height', 0) or 0, reverse=True):
+                h = f.get('height')
+                # فقط کیفیت‌های زیر 1080 را پیشنهاد بده (سرور رایگان کشش 4K ندارد)
+                if h and h <= 1080 and h not in seen_heights:
+                    valid_formats.append(f)
+                    seen_heights.add(h)
 
             context.user_data['url'] = url
-            context.user_data['formats'] = unique_formats
+            context.user_data['formats'] = valid_formats
             context.user_data['title'] = info.get('title', 'video')
             
             keyboard = []
-            for i, f in enumerate(unique_formats[:6]): 
-                keyboard.append([InlineKeyboardButton(f"📥 {f['height']}p", callback_data=f"dl_{i}")])
+            for i, f in enumerate(valid_formats[:5]): 
+                keyboard.append([InlineKeyboardButton(f"📥 {f['height']}p (MP4)", callback_data=f"dl_{i}")])
             
             await msg.edit_text(f"🎥 **{info.get('title')}**\n\nکیفیت را انتخاب کن:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
             
     except Exception as e:
-        error = str(e)
-        logger.error(error)
-        if "Sign in" in error:
-            await msg.edit_text("❌ خطا: یوتیوب درخواست را بلاک کرد. لطفاً فایل کوکی (youtube_cookies.txt) را آپدیت کنید.")
-        else:
-            await msg.edit_text(f"❌ خطا: {error[:200]}")
+        logger.error(str(e))
+        await msg.edit_text(f"❌ خطا: {str(e)[:200]}")
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -137,30 +137,53 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         fmt = context.user_data['formats'][idx]
         url = context.user_data['url']
+        original_title = context.user_data.get('title', 'video')
         
-        await query.edit_message_text(f"🚀 در حال دانلود {fmt['height']}p...")
+        await query.edit_message_text(f"🚀 در حال دانلود {fmt['height']}p...\n(ممکن است کمی طول بکشد)")
         
-        safe_title = "".join([c for c in context.user_data.get('title', 'vid') if c.isalnum()])[:15]
+        # ایمن‌سازی نام فایل
+        safe_title = "".join([c for c in original_title if c.isalnum() or c in [' ', '-', '_']]).strip()[:50]
         filename = f"{safe_title}_{fmt['height']}p.mp4"
-        output_path = os.path.join(STATIC_PATH, filename)
+        output_path = os.path.join(STATIC_DIR, filename)
 
         ydl_opts = get_ydl_opts(download_mode=True)
+        # دانلود فرمت انتخاب شده + تبدیل صدا اگر لازم بود
         ydl_opts['format'] = f"{fmt['format_id']}+bestaudio/best"
         ydl_opts['outtmpl'] = output_path
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             await asyncio.to_thread(ydl.download, [url])
             
+        # ساخت لینک دانلود
+        # اگر BASE_URL ست نشده باشد، لینک لوکال بی معنی است اما برای تست می‌گذاریم
         dl_link = f"{BASE_URL}/{filename}"
-        await query.message.reply_text(f"✅ دانلود تکمیل شد!\n\n🔗 [لینک دانلود]({dl_link})", parse_mode='Markdown')
+        
+        await query.message.reply_text(
+            f"✅ **دانلود تکمیل شد!**\n\n"
+            f"📂 نام فایل: {filename}\n"
+            f"🔗 [برای دانلود کلیک کنید]({dl_link})\n\n"
+            f"⚠️ لینک تا دقایقی دیگر منقضی می‌شود.",
+            parse_mode='Markdown'
+        )
         
     except Exception as e:
         logger.error(str(e))
         await query.message.reply_text(f"❌ خطا در دانلود: {str(e)}")
 
+def clean_static_folder():
+    """پاک کردن فایل‌های قدیمی برای جلوگیری از پر شدن دیسک"""
+    try:
+        for filename in os.listdir(STATIC_DIR):
+            file_path = os.path.join(STATIC_DIR, filename)
+            if os.path.isfile(file_path):
+                os.unlink(file_path)
+    except Exception as e:
+        logger.error(f"Error cleaning static folder: {e}")
+
 if __name__ == '__main__':
-    health_thread = threading.Thread(target=start_health_server, daemon=True)
-    health_thread.start()
+    # اجرای وب‌سرور در ترد جداگانه
+    server_thread = threading.Thread(target=start_web_server, daemon=True)
+    server_thread.start()
 
     application = Application.builder().token(TOKEN).build()
     application.add_handler(CommandHandler("start", start))
