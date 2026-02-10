@@ -11,12 +11,12 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 # --- تنظیمات ---
 TOKEN = os.getenv('BOT_TOKEN')
 BASE_URL = os.getenv('BASE_URL', 'https://google.com') 
-PORT = int(os.getenv('PORT', 8000))  # پورت را از محیط می‌گیریم یا 8000
+PORT = int(os.getenv('PORT', 8000))
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- بخش Health Check برای Koyeb ---
+# --- بخش Health Check ---
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -28,24 +28,19 @@ def start_health_server():
     print(f"✅ Health check server running on port {PORT}")
     server.serve_forever()
 
-# --- بررسی‌های اولیه (Fail Fast) ---
+# --- بررسی‌های اولیه ---
 print("\n" + "!"*50)
-print("🚀 STARTING FINAL BOT V3.1 (With Health Check)")
+print("🚀 STARTING FINAL BOT V3.3 (Web Client Fix)")
 
-# 1. بررسی وجود Node.js
-node_check = os.system("node -v")
-if node_check != 0:
+if os.system("node -v") != 0:
     print("❌ CRITICAL: Node.js is NOT installed!")
 else:
     print("✅ Node.js is ready.")
 
-# 2. بررسی فایل کوکی
 COOKIE_FILE = 'youtube_cookies.txt'
 if not os.path.exists(COOKIE_FILE):
     print(f"❌ CRITICAL: Cookie file '{COOKIE_FILE}' NOT found!")
     with open(COOKIE_FILE, 'w') as f: f.write("# Netscape HTTP Cookie File\n")
-else:
-    print(f"✅ Cookie file found: {os.path.abspath(COOKIE_FILE)}")
 
 print("!"*50 + "\n")
 
@@ -55,7 +50,7 @@ if not TOKEN:
 STATIC_PATH = os.path.join(os.getcwd(), 'static')
 os.makedirs(STATIC_PATH, exist_ok=True)
 
-# --- تنظیمات پیشرفته yt-dlp ---
+# --- تنظیمات حیاتی yt-dlp ---
 def get_ydl_opts(download_mode=False):
     opts = {
         'quiet': True,
@@ -63,12 +58,18 @@ def get_ydl_opts(download_mode=False):
         'cookiefile': COOKIE_FILE,
         'source_address': '0.0.0.0',
         'force_ipv4': True,
+        'socket_timeout': 15,
+        
+        # --- تغییر استراتژی به Web Client ---
+        # کلاینت‌های موبایل روی دیتاسنتر بلاک می‌شوند، وب پایدارتر است
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'web'],
-                'player_skip': ['js', 'configs', 'webpage'],
+                'player_client': ['web', 'tv'], # استفاده از وب و تلویزیون
+                'player_skip': ['configs', 'webpage'],
             }
         },
+        # جعل هویت مرورگر کروم ویندوز
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     }
     
     if download_mode:
@@ -80,21 +81,31 @@ def get_ydl_opts(download_mode=False):
     return opts
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("ربات نهایی آماده است. لینک بده!")
+    await update.message.reply_text("ربات آماده است (Web Mode). لینک بده!")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
     if not url.startswith("http"): return
 
-    msg = await update.message.reply_text("⏳ در حال بررسی (Force IPv4)...")
+    msg = await update.message.reply_text("⏳ در حال بررسی (Web Mode)...")
     
     try:
         ydl_opts = get_ydl_opts(download_mode=False)
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = await asyncio.to_thread(ydl.extract_info, url, download=False)
-            
-            # اصلاح بخش فرمت‌ها برای جلوگیری از ارور Requested format not available
+            # دریافت اطلاعات با هندل کردن خطای فرمت
+            try:
+                info = await asyncio.to_thread(ydl.extract_info, url, download=False)
+            except Exception as e:
+                # اگر باز هم ارور داد، یک بار بدون کوکی تلاش می‌کنیم (شاید کوکی خراب است)
+                if "unavailable" in str(e) or "Only images" in str(e):
+                    logger.warning("Cookie failing, trying without cookies...")
+                    ydl_opts.pop('cookiefile', None)
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl_no_cookie:
+                        info = await asyncio.to_thread(ydl_no_cookie.extract_info, url, download=False)
+                else:
+                    raise e
+
             formats = [f for f in info.get('formats', []) if f.get('height')]
             unique_formats = []
             seen = set()
@@ -106,14 +117,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     seen.add(h)
 
             if not unique_formats:
-                 raise Exception("هیچ فرمت تصویری مناسبی پیدا نشد (شاید ویدیو فقط صداست یا فرمت خاصی دارد).")
+                 raise Exception("فرمت ویدیویی یافت نشد! (احتمالا IP سرور بلاک شده است)")
 
             context.user_data['url'] = url
             context.user_data['formats'] = unique_formats
             context.user_data['title'] = info.get('title', 'video')
             
             keyboard = []
-            for i, f in enumerate(unique_formats[:5]): 
+            for i, f in enumerate(unique_formats[:6]): 
                 keyboard.append([InlineKeyboardButton(f"📥 {f['height']}p", callback_data=f"dl_{i}")])
             
             await msg.edit_text(f"🎥 **{info.get('title')}**\n\nکیفیت را انتخاب کن:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
@@ -139,7 +150,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         output_path = os.path.join(STATIC_PATH, filename)
 
         ydl_opts = get_ydl_opts(download_mode=True)
-        # اصلاح: استفاده از آیدی فرمت دقیق + بهترین صدا
+        # برای وب، فرمت‌ها معمولا جدا هستند، پس ترکیب صدا و تصویر ضروری است
         ydl_opts['format'] = f"{fmt['format_id']}+bestaudio/best"
         ydl_opts['outtmpl'] = output_path
         
@@ -154,7 +165,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(f"❌ خطا در دانلود: {str(e)}")
 
 if __name__ == '__main__':
-    # اجرای سرور Health Check در یک ترد جداگانه
+    # اجرای Health Check
     health_thread = threading.Thread(target=start_health_server, daemon=True)
     health_thread.start()
 
