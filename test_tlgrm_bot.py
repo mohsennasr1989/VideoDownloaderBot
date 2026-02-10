@@ -7,7 +7,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 
 # --- تنظیمات ---
-TOKEN = '8575396350:AAHOOcZYJ5dzazkJqJMNbx6ZBZ9Uh64fLnc'
+TOKEN = TOKEN = os.getenv('BOT_TOKEN')
 # آدرس سایت شما در PythonAnywhere (مثلاً http://mohsen.pythonanywhere.com)
 BASE_URL = 'http://YOUR_USERNAME.pythonanywhere.com' 
 # مسیر پوشه استاتیک روی سرور
