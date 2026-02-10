@@ -16,7 +16,7 @@ WORKDIR /app
 
 # کپی و نصب پکیج‌ها
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --force-reinstall -r requirements.txt
 
 COPY . .
 

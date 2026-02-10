@@ -30,17 +30,15 @@ def start_health_server():
 
 # --- بررسی‌های اولیه ---
 print("\n" + "!"*50)
-print("🚀 STARTING FINAL BOT V4.0 (Android Creator Strategy)")
+print("🚀 STARTING FINAL BOT V5.0 (IPv6 + iOS Strategy)")
 
-if os.system("node -v") != 0:
-    print("❌ CRITICAL: Node.js is NOT installed!")
-else:
-    print("✅ Node.js is ready.")
-
-# نکته: کوکی را حذف کردیم چون باعث بلاک شدن روی سرور می‌شود
 COOKIE_FILE = 'youtube_cookies.txt'
-if os.path.exists(COOKIE_FILE):
-    print("⚠️ WARNING: Cookie file found but will be IGNORED to prevent IP mismatch blocks.")
+if not os.path.exists(COOKIE_FILE):
+    print(f"❌ CRITICAL: Cookie file '{COOKIE_FILE}' NOT found! YouTube will BLOCK this bot.")
+    # ساخت فایل خالی فقط برای جلوگیری از کرش، اما دانلود انجام نخواهد شد
+    with open(COOKIE_FILE, 'w') as f: f.write("# Netscape HTTP Cookie File\n")
+else:
+    print(f"✅ Cookie file found: {os.path.abspath(COOKIE_FILE)}")
 
 print("!"*50 + "\n")
 
@@ -55,16 +53,16 @@ def get_ydl_opts(download_mode=False):
     opts = {
         'quiet': True,
         'nocheckcertificate': True,
-        # 'cookiefile': COOKIE_FILE,  <-- کوکی را غیرفعال کردیم
-        'source_address': '0.0.0.0',
-        'force_ipv4': True,
-        'socket_timeout': 30,
+        'cookiefile': COOKIE_FILE,
         
-        # --- استراتژی طلایی برای سرورهای ابری ---
-        # استفاده از کلاینت YouTube Studio (Creator) که کمتر بلاک می‌شود
+        # --- استراتژی IPv6 (حل مشکل Sign in) ---
+        # حذف force_ipv4 و source_address تا خود سیستم عامل IPv6 را انتخاب کند
+        # 'force_ipv4': False,  <-- پیش‌فرض فالس است، پس خط را حذف می‌کنیم
+        
+        # استفاده از کلاینت iOS (پایدارترین گزینه با کوکی)
         'extractor_args': {
             'youtube': {
-                'player_client': ['android_creator', 'web'],
+                'player_client': ['ios', 'web'],
                 'player_skip': ['js', 'configs', 'webpage'],
             }
         },
@@ -79,13 +77,13 @@ def get_ydl_opts(download_mode=False):
     return opts
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("ربات آماده است (نسخه ضد تحریم). لینک بده!")
+    await update.message.reply_text("ربات آماده است (نسخه IPv6). لینک بده!")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
     if not url.startswith("http"): return
 
-    msg = await update.message.reply_text("⏳ در حال پردازش (Creator API)...")
+    msg = await update.message.reply_text("⏳ در حال بررسی (IPv6 Mode)...")
     
     try:
         ydl_opts = get_ydl_opts(download_mode=False)
@@ -95,14 +93,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 info = await asyncio.to_thread(ydl.extract_info, url, download=False)
             except Exception as e:
-                # اگر باز هم خطا داد، یک بار با کلاینت iOS تلاش می‌کنیم (Plan B)
-                if "unavailable" in str(e) or "Only images" in str(e):
-                    logger.warning("Android Creator failed, trying iOS fallback...")
-                    ydl_opts['extractor_args']['youtube']['player_client'] = ['ios']
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl_ios:
-                        info = await asyncio.to_thread(ydl_ios.extract_info, url, download=False)
-                else:
-                    raise e
+                # اگر با کوکی خطا داد، این بار شانس کمی وجود دارد بدون کوکی کار کند
+                # اما لاگ میکنیم
+                logger.error(f"Extraction failed: {e}")
+                raise e
 
             formats = [f for f in info.get('formats', []) if f.get('height')]
             unique_formats = []
@@ -115,7 +109,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     seen.add(h)
 
             if not unique_formats:
-                 raise Exception("فرمت ویدیویی پیدا نشد (احتمالاً IP سرور بلاک شده).")
+                 raise Exception("فرمت تصویری یافت نشد. (ممکن است کوکی منقضی شده باشد)")
 
             context.user_data['url'] = url
             context.user_data['formats'] = unique_formats
@@ -130,7 +124,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         error = str(e)
         logger.error(error)
-        await msg.edit_text(f"❌ خطا: {error[:200]}")
+        if "Sign in" in error:
+            await msg.edit_text("❌ خطا: یوتیوب درخواست را بلاک کرد. لطفاً فایل کوکی (youtube_cookies.txt) را آپدیت کنید.")
+        else:
+            await msg.edit_text(f"❌ خطا: {error[:200]}")
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -148,10 +145,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         output_path = os.path.join(STATIC_PATH, filename)
 
         ydl_opts = get_ydl_opts(download_mode=True)
-        
-        # تنظیم مجدد کلاینت برای دانلود (همان چیزی که در مرحله قبل موفق شده)
-        # به طور پیش‌فرض همان Android Creator
-        
         ydl_opts['format'] = f"{fmt['format_id']}+bestaudio/best"
         ydl_opts['outtmpl'] = output_path
         
@@ -166,7 +159,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(f"❌ خطا در دانلود: {str(e)}")
 
 if __name__ == '__main__':
-    # Health Check
     health_thread = threading.Thread(target=start_health_server, daemon=True)
     health_thread.start()
 
