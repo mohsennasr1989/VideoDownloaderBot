@@ -7,41 +7,41 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 
 # --- تنظیمات ---
-# خواندن توکن از متغیرهای محیطی Koyeb
 TOKEN = os.getenv('BOT_TOKEN')
 BASE_URL = os.getenv('BASE_URL', 'https://google.com') 
 
+# تنظیم لاگ
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# --- نشانه برای اطمینان از آپدیت شدن ---
-print("\n\n" + "="*50)
-print("🚀 NEW VERSION LOADED: OAUTH2 + NODEJS")
-print("="*50 + "\n\n")
+# --- تست حیاتی اجرا ---
+print("\n" + "#"*50)
+print("🚀 SYSTEM REBOOT: EXECUTION STARTED SUCCESSFULLY")
+print(f"📂 Current Directory: {os.getcwd()}")
+print(f"🍪 Looking for cookies at: {os.path.join(os.getcwd(), 'youtube_cookies.txt')}")
+print("#"*50 + "\n")
 
 if not TOKEN:
-    print("❌ ERROR: BOT_TOKEN is missing!")
+    print("❌ CRITICAL ERROR: BOT_TOKEN is missing!")
     sys.exit(1)
 
-# مسیر استاتیک برای دانلود
 STATIC_PATH = os.path.join(os.getcwd(), 'static')
 if not os.path.exists(STATIC_PATH):
     os.makedirs(STATIC_PATH)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 ربات آماده است! لینک یوتیوب بفرست.")
+    await update.message.reply_text("👋 ربات با سیستم جدید آماده است! لینک بفرست.")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
     if not url.startswith("http"): return
 
-    msg = await update.message.reply_text("🔍 در حال بررسی لینک...")
+    msg = await update.message.reply_text("🔍 در حال آنالیز لینک...")
     
-    # تنظیمات اولیه فقط برای گرفتن اطلاعات
+    # تنظیمات استخراج اطلاعات
     ydl_opts = {
         'quiet': True,
         'nocheckcertificate': True,
-        'username': 'oauth2', # استفاده از OAuth2
-        'password': '',
+        'cookiefile': 'youtube_cookies.txt', # بازگشت به کوکی
     }
     
     try:
@@ -49,7 +49,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             info = await asyncio.to_thread(ydl.extract_info, url, download=False)
             formats = [f for f in info.get('formats', []) if f.get('height')]
             
-            # فیلتر کیفیت‌ها
             unique_formats = []
             seen = set()
             for f in sorted(formats, key=lambda x: x['height'], reverse=True):
@@ -66,7 +65,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await msg.edit_text(f"🎬 {info.get('title')}\nکیفیت را انتخاب کن:", reply_markup=InlineKeyboardMarkup(keyboard))
             
     except Exception as e:
-        await msg.edit_text(f"❌ خطا: {str(e)}\n(اگر لینک یوتیوب است، لاگ سرور را برای کد تایید چک کنید)")
+        await msg.edit_text(f"❌ خطا: {str(e)}")
         print(f"ERROR: {e}")
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -82,14 +81,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     filename = f"vid_{query.id}.mp4"
     output_path = os.path.join(STATIC_PATH, filename)
 
-    # تنظیمات اصلی دانلود
     ydl_opts = {
         'format': f"{fmt['format_id']}+bestaudio/best",
         'outtmpl': output_path,
         'merge_output_format': 'mp4',
         'nocheckcertificate': True,
-        'username': 'oauth2',
-        'password': '',
+        'cookiefile': 'youtube_cookies.txt', # استفاده از کوکی
         'nopart': False,
     }
 
