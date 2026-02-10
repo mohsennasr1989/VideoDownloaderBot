@@ -82,9 +82,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     'outtmpl': output_path,
     'merge_output_format': 'mp4',
     'nocheckcertificate': True,
-    'cookiefile': 'youtube_cookies.txt', # استفاده از کوکی برای دور زدن بلاک
+    'cookiefile': 'youtube_cookies.txt',
     'nopart': False,
-}
+    'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
