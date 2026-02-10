@@ -77,28 +77,29 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.edit_message_text(f"🚀 شروع دانلود {selected['height']}p...\nفایل‌های موقت پس از تکمیل حذف می‌شوند.")
     
-    cookie_path = os.path.join(os.getcwd(), 'youtube_cookies.txt')
-    if os.path.exists(cookie_path):
-        print(f"✅ فایل کوکی پیدا شد: {cookie_path}")
-    else:
-        print(f"❌ خطا: فایل کوکی در مسیر {cookie_path} وجود ندارد!")
+    # cookie_path = os.path.join(os.getcwd(), 'youtube_cookies.txt')
+    # if os.path.exists(cookie_path):
+    #     print(f"✅ فایل کوکی پیدا شد: {cookie_path}")
+    # else:
+    #     print(f"❌ خطا: فایل کوکی در مسیر {cookie_path} وجود ندارد!")
 
     ydl_opts = {
         'format': f"{selected['format_id']}+bestaudio/best",
         'outtmpl': output_path,
         'merge_output_format': 'mp4',
         'nocheckcertificate': True,
-        'cookiefile': cookie_path,
+        # استفاده از متد OAuth2 به جای فایل کوکی
+        'username': 'oauth2',
+        'password': '', 
         'nopart': False,
-        # اضافه کردن هدرهای ضروری برای فریب یوتیوب
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Sec-Fetch-Mode': 'navigate',
+        # استفاده از کلاینت‌های مختلف برای دور زدن محدودیت
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['tv', 'web'],
+                'skip': ['dash', 'hls']
+            }
         },
-        # اجبار به استفاده از IPهای IPv4 (چون IPv6 در دیتاسنترها خیلی زود بلاک می‌شود)
-        'source_address': '0.0.0.0', 
+        'cache_dir': '/app/cache',
     }
 
     try:
