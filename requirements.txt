@@ -1,3 +1,3 @@
 python-telegram-bot
-# نصب مستقیم آخرین نسخه از گیت‌هاب برای حل مشکل n-challenge
-yt-dlp@git+https://github.com/yt-dlp/yt-dlp.git@master
+# نصب نسخه Master برای حل مشکل n-challenge
+yt-dlp @ git+https://github.com/yt-dlp/yt-dlp.git@master

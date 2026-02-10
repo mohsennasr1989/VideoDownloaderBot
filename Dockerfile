@@ -1,19 +1,23 @@
-# استفاده از ایمیج آماده که هم پایتون داره هم Node.js
-FROM nikolaik/python-nodejs:python3.10-nodejs20
+FROM python:3.10-slim
 
-# نصب FFmpeg (برای چسباندن صدا و تصویر)
-RUN apt-get update && \
-    apt-get install -y ffmpeg && \
-    rm -rf /var/lib/apt/lists/*
+# نصب ابزارهای ضروری با آدرس‌دهی دقیق
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    curl \
+    gnupg \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# کپی و نصب نیازمندی‌ها
+# کپی و نصب پکیج‌ها
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# کپی بقیه فایل‌ها
 COPY . .
 
-# دستور اجرا
-CMD ["python", "main_bot.py"]
+# اطمینان از وجود کوکی قبل از اجرا
+CMD ["python", "final_bot.py"]
