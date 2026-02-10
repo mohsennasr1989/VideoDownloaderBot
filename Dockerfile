@@ -1,6 +1,6 @@
 FROM python:3.10-slim
 
-# نصب ffmpeg و nodejs (برای جاوااسکریپت یوتیوب)
+# Force Rebuild: 2026-02-10-v1
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     curl \
@@ -12,4 +12,4 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 COPY . .
-CMD ["python", "test_tlgrm_bot.py"]
+CMD ["python", "tlgrm_bot.py"]
