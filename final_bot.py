@@ -30,17 +30,17 @@ def start_health_server():
 
 # --- بررسی‌های اولیه ---
 print("\n" + "!"*50)
-print("🚀 STARTING FINAL BOT V3.3 (Web Client Fix)")
+print("🚀 STARTING FINAL BOT V4.0 (Android Creator Strategy)")
 
 if os.system("node -v") != 0:
     print("❌ CRITICAL: Node.js is NOT installed!")
 else:
     print("✅ Node.js is ready.")
 
+# نکته: کوکی را حذف کردیم چون باعث بلاک شدن روی سرور می‌شود
 COOKIE_FILE = 'youtube_cookies.txt'
-if not os.path.exists(COOKIE_FILE):
-    print(f"❌ CRITICAL: Cookie file '{COOKIE_FILE}' NOT found!")
-    with open(COOKIE_FILE, 'w') as f: f.write("# Netscape HTTP Cookie File\n")
+if os.path.exists(COOKIE_FILE):
+    print("⚠️ WARNING: Cookie file found but will be IGNORED to prevent IP mismatch blocks.")
 
 print("!"*50 + "\n")
 
@@ -55,21 +55,19 @@ def get_ydl_opts(download_mode=False):
     opts = {
         'quiet': True,
         'nocheckcertificate': True,
-        'cookiefile': COOKIE_FILE,
+        # 'cookiefile': COOKIE_FILE,  <-- کوکی را غیرفعال کردیم
         'source_address': '0.0.0.0',
         'force_ipv4': True,
-        'socket_timeout': 15,
+        'socket_timeout': 30,
         
-        # --- تغییر استراتژی به Web Client ---
-        # کلاینت‌های موبایل روی دیتاسنتر بلاک می‌شوند، وب پایدارتر است
+        # --- استراتژی طلایی برای سرورهای ابری ---
+        # استفاده از کلاینت YouTube Studio (Creator) که کمتر بلاک می‌شود
         'extractor_args': {
             'youtube': {
-                'player_client': ['web', 'tv'], # استفاده از وب و تلویزیون
-                'player_skip': ['configs', 'webpage'],
+                'player_client': ['android_creator', 'web'],
+                'player_skip': ['js', 'configs', 'webpage'],
             }
         },
-        # جعل هویت مرورگر کروم ویندوز
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     }
     
     if download_mode:
@@ -81,28 +79,28 @@ def get_ydl_opts(download_mode=False):
     return opts
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("ربات آماده است (Web Mode). لینک بده!")
+    await update.message.reply_text("ربات آماده است (نسخه ضد تحریم). لینک بده!")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
     if not url.startswith("http"): return
 
-    msg = await update.message.reply_text("⏳ در حال بررسی (Web Mode)...")
+    msg = await update.message.reply_text("⏳ در حال پردازش (Creator API)...")
     
     try:
         ydl_opts = get_ydl_opts(download_mode=False)
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # دریافت اطلاعات با هندل کردن خطای فرمت
+            # دریافت اطلاعات
             try:
                 info = await asyncio.to_thread(ydl.extract_info, url, download=False)
             except Exception as e:
-                # اگر باز هم ارور داد، یک بار بدون کوکی تلاش می‌کنیم (شاید کوکی خراب است)
+                # اگر باز هم خطا داد، یک بار با کلاینت iOS تلاش می‌کنیم (Plan B)
                 if "unavailable" in str(e) or "Only images" in str(e):
-                    logger.warning("Cookie failing, trying without cookies...")
-                    ydl_opts.pop('cookiefile', None)
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl_no_cookie:
-                        info = await asyncio.to_thread(ydl_no_cookie.extract_info, url, download=False)
+                    logger.warning("Android Creator failed, trying iOS fallback...")
+                    ydl_opts['extractor_args']['youtube']['player_client'] = ['ios']
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl_ios:
+                        info = await asyncio.to_thread(ydl_ios.extract_info, url, download=False)
                 else:
                     raise e
 
@@ -117,7 +115,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     seen.add(h)
 
             if not unique_formats:
-                 raise Exception("فرمت ویدیویی یافت نشد! (احتمالا IP سرور بلاک شده است)")
+                 raise Exception("فرمت ویدیویی پیدا نشد (احتمالاً IP سرور بلاک شده).")
 
             context.user_data['url'] = url
             context.user_data['formats'] = unique_formats
@@ -150,7 +148,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         output_path = os.path.join(STATIC_PATH, filename)
 
         ydl_opts = get_ydl_opts(download_mode=True)
-        # برای وب، فرمت‌ها معمولا جدا هستند، پس ترکیب صدا و تصویر ضروری است
+        
+        # تنظیم مجدد کلاینت برای دانلود (همان چیزی که در مرحله قبل موفق شده)
+        # به طور پیش‌فرض همان Android Creator
+        
         ydl_opts['format'] = f"{fmt['format_id']}+bestaudio/best"
         ydl_opts['outtmpl'] = output_path
         
@@ -165,7 +166,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(f"❌ خطا در دانلود: {str(e)}")
 
 if __name__ == '__main__':
-    # اجرای Health Check
+    # Health Check
     health_thread = threading.Thread(target=start_health_server, daemon=True)
     health_thread.start()
 
