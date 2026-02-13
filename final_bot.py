@@ -119,6 +119,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data['formats'] = unique_formats
             # عنوان را فقط برای نمایش نگه می‌داریم، نه برای اسم فایل
             context.user_data['title'] = info.get('title', 'Video')
+            context.user_data['uploader'] = info.get('uploader', 'Uploader')
             
             keyboard = []
             for i, f in enumerate(unique_formats[:5]): 
@@ -161,9 +162,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await query.message.reply_text(
             f"✅ دانلود انجام شد!\n\n"
-            f"{FILE_NAME}\n"
-            f"{FULL_FILE_NAME}\n"
-            f"{UPLOADER_NAME}\n"
+            f"{context.user_data['title']}\n"
+            f"{context.user_data['uploader']}\n"
             f"🔗 [برای دانلود کلیک کن]({dl_link})\n\n"
             f"⚠️ نکته: لینک برای دانلود مستقیم است.",
             parse_mode='Markdown'
