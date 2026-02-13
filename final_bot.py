@@ -79,7 +79,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
-    if not url.startswith("http"): return
+    if not url.startswith("http"):
+        await update.message.reply_text("ربات آماده است. لینک بفرست.")
+
 
     msg = await update.message.reply_text("⏳ ...")
     
