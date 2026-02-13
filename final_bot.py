@@ -161,6 +161,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await query.message.reply_text(
             f"✅ دانلود انجام شد!\n\n"
+            f"{FILE_NAME}\n"
+            f"{FULL_FILE_NAME}\n"
+            f"{UPLOADER_NAME}\n"
             f"🔗 [برای دانلود کلیک کن]({dl_link})\n\n"
             f"⚠️ نکته: لینک برای دانلود مستقیم است.",
             parse_mode='Markdown'
