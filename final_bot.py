@@ -134,6 +134,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         fmt = context.user_data['formats'][idx]
         url = context.user_data['url']
+        file_name = context.user_data['title']
         
         # تولید اسم فایل کاملاً تصادفی و امن (حل مشکل 404)
         file_id = str(uuid.uuid4())[:8]
@@ -153,6 +154,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await query.message.reply_text(
             f"✅ دانلود انجام شد!\n\n"
+            f"{file_name}"
             f"🔗 [برای دانلود کلیک کن]({dl_link})\n\n"
             f"⚠️ نکته: لینک برای دانلود مستقیم است.",
             parse_mode='Markdown'
