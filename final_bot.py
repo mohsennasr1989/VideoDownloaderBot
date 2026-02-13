@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 STATIC_DIR = os.path.join(os.getcwd(), 'static')
 os.makedirs(STATIC_DIR, exist_ok=True)
 
+FILE_NAME = ''
+
 # --- سرور دانلود فایل ---
 class FileHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -111,6 +113,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data['formats'] = unique_formats
             # عنوان را فقط برای نمایش نگه می‌داریم، نه برای اسم فایل
             context.user_data['title'] = info.get('title', 'Video')
+            FILE_NAME = info.get('title', 'Video')
             
             keyboard = []
             for i, f in enumerate(unique_formats[:5]): 
@@ -134,7 +137,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         fmt = context.user_data['formats'][idx]
         url = context.user_data['url']
-        file_name = context.user_data['title']
         
         # تولید اسم فایل کاملاً تصادفی و امن (حل مشکل 404)
         file_id = str(uuid.uuid4())[:8]
@@ -151,10 +153,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # ساخت لینک دانلود با اسم فایل رندوم
         filename = f"{file_id}.mp4"
         dl_link = f"{BASE_URL}/{filename}"
+
+        # file_name = context.user_data.get(['title'],'')
         
         await query.message.reply_text(
             f"✅ دانلود انجام شد!\n\n"
-            f"{file_name}"
+            f"{FILE_NAME}"
             f"🔗 [برای دانلود کلیک کن]({dl_link})\n\n"
             f"⚠️ نکته: لینک برای دانلود مستقیم است.",
             parse_mode='Markdown'
