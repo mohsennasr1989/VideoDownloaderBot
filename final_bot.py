@@ -22,6 +22,8 @@ STATIC_DIR = os.path.join(os.getcwd(), 'static')
 os.makedirs(STATIC_DIR, exist_ok=True)
 
 FILE_NAME = ''
+FULL_FILE_NAME = ''
+UPLOADER_NAME = ''
 
 # --- سرور دانلود فایل ---
 class FileHandler(SimpleHTTPRequestHandler):
@@ -99,6 +101,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
                     info = await asyncio.to_thread(ydl2.extract_info, url, download=False)
 
+            FILE_NAME = info.get('title', 'No Title')
+            FULL_FILE_NAME = info.get('fulltitle', 'No Title')
+            UPLOADER_NAME = info.get('uploader', 'No Uploader')
+
             formats = [f for f in info.get('formats', []) if f.get('height')]
             unique_formats = []
             seen = set()
@@ -113,7 +119,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data['formats'] = unique_formats
             # عنوان را فقط برای نمایش نگه می‌داریم، نه برای اسم فایل
             context.user_data['title'] = info.get('title', 'Video')
-            FILE_NAME = info.get('title', 'Video')
             
             keyboard = []
             for i, f in enumerate(unique_formats[:5]): 
@@ -153,12 +158,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # ساخت لینک دانلود با اسم فایل رندوم
         filename = f"{file_id}.mp4"
         dl_link = f"{BASE_URL}/{filename}"
-
-        # file_name = context.user_data.get(['title'],'')
         
         await query.message.reply_text(
             f"✅ دانلود انجام شد!\n\n"
-            f"{FILE_NAME}"
             f"🔗 [برای دانلود کلیک کن]({dl_link})\n\n"
             f"⚠️ نکته: لینک برای دانلود مستقیم است.",
             parse_mode='Markdown'
