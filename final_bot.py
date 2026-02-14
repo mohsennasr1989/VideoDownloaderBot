@@ -21,10 +21,6 @@ logger = logging.getLogger(__name__)
 STATIC_DIR = os.path.join(os.getcwd(), 'static')
 os.makedirs(STATIC_DIR, exist_ok=True)
 
-FILE_NAME = ''
-FULL_FILE_NAME = ''
-UPLOADER_NAME = ''
-
 # --- سرور دانلود فایل ---
 class FileHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -81,6 +77,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
     if not url.startswith("http"):
         await update.message.reply_text("ربات آماده است. لینک بفرست.")
+        return
 
 
     msg = await update.message.reply_text("⏳ ...")
@@ -102,10 +99,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ydl_opts['extractor_args']['youtube']['player_client'] = ['ios']
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
                     info = await asyncio.to_thread(ydl2.extract_info, url, download=False)
-
-            FILE_NAME = info.get('title', 'No Title')
-            FULL_FILE_NAME = info.get('fulltitle', 'No Title')
-            UPLOADER_NAME = info.get('uploader', 'No Uploader')
 
             formats = [f for f in info.get('formats', []) if f.get('height')]
             unique_formats = []
@@ -165,7 +158,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(
             f"✅ دانلود انجام شد!\n\n"
             f"\n"
-            f"🔗 {context.user_data['title']} - {context.user_data['uploader']}({dl_link})\n\n"
+            f"🔗 {context.user_data['title']} - {context.user_data['uploader']} ({dl_link})\n\n"
             f"⚠️ نکته: لینک برای دانلود مستقیم است.",
             parse_mode='Markdown'
         )
